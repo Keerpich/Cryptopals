@@ -3,6 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Security.Cryptography;
+using System.IO;
 
 namespace Cryptopals
 {
@@ -83,6 +85,36 @@ namespace Cryptopals
             {
                 result[i] = (byte)(cipherBytes[i] ^ keyBytes[i % keyBytes.Length]);
             }
+            
+            return HexByteArrayToString(result);
+        }
+
+        public static string RepeatingKeyXOR(byte[] cipher, byte[] key)
+        {
+            byte[] cipherBytes = cipher;
+            byte[] keyBytes = key;
+
+            byte[] result = new byte[cipherBytes.Length];
+
+            for (int i = 0; i < cipherBytes.Length; i++)
+            {
+                result[i] = (byte)(cipherBytes[i] ^ keyBytes[i % keyBytes.Length]);
+            }
+
+            return HexByteArrayToString(result);
+        }
+
+        public static string RepeatingKeyXOR(byte[] cipher, string key)
+        {
+            byte[] cipherBytes = cipher;
+            byte[] keyBytes = ASCIIEncoding.ASCII.GetBytes(key);
+
+            byte[] result = new byte[cipherBytes.Length];
+
+            for (int i = 0; i < cipherBytes.Length; i++)
+            {
+                result[i] = (byte)(cipherBytes[i] ^ keyBytes[i % keyBytes.Length]);
+            }
 
             return HexByteArrayToString(result);
         }
@@ -95,6 +127,14 @@ namespace Cryptopals
             public int fitness;
             public string clearText;
         }
+
+        public struct VigenereDecryptResult
+        {
+            public string key;
+            public int fitness;
+            public string clearText;
+        }
+        
         #endregion
 
         #region Ciphers
@@ -134,55 +174,104 @@ namespace Cryptopals
             return bestResults[bestResults.Count - 1];
         }
 
-        public static string Vigenere(string base4CipheredText)
+        public static VigenereDecryptResult Vigenere(string base64CipheredText)
         {
-            string cipheredText = B64ToString(base4CipheredText);
-            byte[] cipheredBytes = Utils.GetBytes(cipheredText);
+            string cipheredText = B64ToString(base64CipheredText);
+            byte[] cipheredBytes = HexStringToByteArray(cipheredText);
 
-            int bestKeysize = -1;
-            float minDistance = -1f;
-
-            for (int keysize = 2; keysize < (40 < cipheredText.Length / 2 ? 40 : cipheredText.Length / 2); keysize++)
+            List<VigenereDecryptResult> results = new List<VigenereDecryptResult>();
+            
+            for (int bestKeysize = 2; bestKeysize < 41; bestKeysize++)
             {
-                byte[] chunk1 = new byte[keysize];
-                byte[] chunk2 = new byte[keysize];
+                List<byte[]> allChunks = new List<byte[]>();
 
-                for (int i = 0; i < keysize; i++)
-                    chunk1[i] = cipheredBytes[i];
-                for (int i = keysize; i < 2 * keysize; i++)
-                    chunk2[i - keysize] = cipheredBytes[i];
-
-                float distance = Utils.HammingDistance(new BitArray(chunk1), new BitArray(chunk2)) / keysize;
-
-                if(distance < minDistance || minDistance == -1)
+                for (int i = 0; i < cipheredBytes.Length; i += bestKeysize)
                 {
-                    minDistance = distance;
-                    bestKeysize = keysize;
+                    int chunkLength = cipheredBytes.Length - i < bestKeysize ? cipheredBytes.Length - i : bestKeysize;
+                    allChunks.Add(new byte[chunkLength]);
+
+                    for (int j = 0; j < chunkLength; j++)
+                    {
+                        allChunks[i / bestKeysize][j] = cipheredBytes[i + j];
+                    }
+                }
+
+                //make new blocks according to step 6
+
+                int minChunkLength = -1;
+                foreach (byte[] chunk in allChunks)
+                {
+                    if (chunk.Length < minChunkLength || minChunkLength == -1)
+                        minChunkLength = chunk.Length;
+                }
+
+                List<List<byte>> allBlocks = new List<List<byte>>();
+
+                for (int i = 0; i < bestKeysize; i++)
+                {
+                    allBlocks.Add(new List<byte>());
+
+                    foreach (byte[] chunk in allChunks)
+                    {
+                        if (chunk.Length > i)
+                            allBlocks[i].Add(chunk[i]);
+                    }
+                }
+
+                string real_key = "";
+
+                foreach (List<byte> block in allBlocks)
+                {
+                    real_key += (char)SingleByteXORCipher(HexByteArrayToString(block.ToArray())).key;
+                }
+
+                string plainText = ASCIIEncoding.ASCII.GetString(HexStringToByteArray(RepeatingKeyXOR(cipheredBytes, real_key)));
+                int fitness = Utils.TotalFitnessOfString(plainText);
+
+                VigenereDecryptResult vdr = new VigenereDecryptResult();
+                vdr.clearText = plainText;
+                vdr.key = real_key;
+                vdr.fitness = fitness;
+
+                results.Add(vdr);
+            }
+
+            results.Sort((v1, v2) => v1.fitness.CompareTo(v2.fitness));
+            
+            return results[results.Count - 1];
+        }
+
+        private static RijndaelManaged GetCryptoAlgorithm()
+        {
+            RijndaelManaged algorithm = new RijndaelManaged();
+            //set the mode, padding and block size
+            algorithm.Padding = PaddingMode.PKCS7;
+            algorithm.Mode = CipherMode.ECB;
+            algorithm.KeySize = 128;
+            algorithm.BlockSize = 128;
+            return algorithm;
+        }
+
+
+        public static string AesDecrypt(byte[] inputBytes, byte[] key)
+        {
+            byte[] outputBytes = inputBytes;
+            byte[] keyAndIvBytes = key;
+
+            string plaintext = string.Empty;
+
+            using (MemoryStream memoryStream = new MemoryStream(outputBytes))
+            {
+                using (CryptoStream cryptoStream = new CryptoStream(memoryStream, GetCryptoAlgorithm().CreateDecryptor(keyAndIvBytes, keyAndIvBytes), CryptoStreamMode.Read))
+                {
+                    using (StreamReader srDecrypt = new StreamReader(cryptoStream))
+                    {
+                        plaintext = srDecrypt.ReadToEnd();
+                    }
                 }
             }
 
-            //now we probably know the keysize
-            //and we break the text into chunk of bestKeysize length
-
-            List<byte[]> allChunks = new List<byte[]>();
-
-            for (int i = 0; i < cipheredBytes.Length; i+=bestKeysize)
-            {
-                int chunkLength = cipheredBytes.Length - i < bestKeysize ? cipheredBytes.Length - 1 : bestKeysize;
-                allChunks.Add(new byte[chunkLength]);
-
-                for (int j = 0; j < chunkLength; j++)
-                {
-                    allChunks[i][j] = cipheredBytes[i + j];
-                }
-            }
-
-            //make new blocks according to step 6
-
-            List<byte[]> allBlocks = new List<byte[]>();
-
-            throw new NotImplementedException();
-
+            return plaintext;
         }
         #endregion
 
