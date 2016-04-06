@@ -50,6 +50,20 @@ namespace Cryptopals
 
             //Console.ReadKey();
 
+            //8
+            //string[] lines = File.ReadAllLines("input.txt");
+
+            //foreach (string res in Set1.DetectECB(lines))
+            //{
+            //    Console.WriteLine(res);
+            //    Console.WriteLine();
+            //}
+
+            //9
+            Console.WriteLine(Set1.Pkcs7Padding(Console.ReadLine(), 20));
+
+            Console.ReadKey();
+
         }
     }
 }

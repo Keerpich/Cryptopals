@@ -273,6 +273,70 @@ namespace Cryptopals
 
             return plaintext;
         }
+
+        public static string[] DetectECB(string[] input)
+        {
+            List<string> result = new List<string>();
+
+            foreach (string vline in input)
+            {
+                string line = vline.Trim();
+                byte[] lineBytes = Set1.HexStringToByteArray(line);
+
+                List<byte[]> chunksOf16 = new List<byte[]>();
+
+                for (int i = 0; i < lineBytes.Length; i += 16)
+                {
+                    byte[] chunk = new byte[16];
+
+                    for (int j = 0; j < 16; j++)
+                        chunk[j] = lineBytes[i + j];
+
+                    chunksOf16.Add(chunk);
+                }
+
+                for (int x = 0; x < chunksOf16.Count; x++)
+                {
+                    for (int y = 0; y < chunksOf16.Count; y++)
+                    {
+                        if (x == y) continue;
+
+                        bool areEqual = true;
+
+                        for (int k = 0; k < 16; k++)
+                        {
+                            if (chunksOf16[x][k] != chunksOf16[y][k])
+                                areEqual = false;
+                        }
+
+                        if (areEqual && !result.Contains(line))
+                        {
+                            result.Add(line);
+                        }
+                    }
+                }
+                
+            }
+
+            return result.ToArray();
+        }
+
+        public static string Pkcs7Padding(string toPad, int blockLength = 16)
+        {
+            List<byte> unpadded = new List<byte>(Utils.GetBytes(toPad));
+            Console.WriteLine(blockLength);
+            Console.WriteLine(unpadded.Count);
+            int bytesToBeAdded = blockLength - unpadded.Count % blockLength;
+
+            Console.WriteLine(bytesToBeAdded);
+
+            while(unpadded.Count % blockLength != 0)
+            {
+                unpadded.Add((byte)bytesToBeAdded);
+            }
+
+            return Utils.GetString(unpadded.ToArray());
+        }
         #endregion
 
     }
