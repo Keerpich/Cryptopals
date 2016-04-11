@@ -145,7 +145,7 @@ namespace Cryptopals
             for (int k = 0; k < 256; k++)
             {
                 string clearText = ByteArrayToASCIIString(HexStringToByteArray(SingleByteFullHex(hex, Convert.ToByte(k))));
-                int value = Utils.TotalFitnessOfString(clearText);
+                int value = TotalFitnessOfString(clearText);
 
                 SingleByteDecryptResult sbdr = new SingleByteDecryptResult();
                 sbdr.key = k;
@@ -226,7 +226,7 @@ namespace Cryptopals
                 }
 
                 string plainText = ASCIIEncoding.ASCII.GetString(HexStringToByteArray(RepeatingKeyXOR(cipheredBytes, real_key)));
-                int fitness = Utils.TotalFitnessOfString(plainText);
+                int fitness = TotalFitnessOfString(plainText);
 
                 VigenereDecryptResult vdr = new VigenereDecryptResult();
                 vdr.clearText = plainText;
@@ -240,38 +240,93 @@ namespace Cryptopals
             
             return results[results.Count - 1];
         }
+        #endregion
 
-        private static RijndaelManaged GetCryptoAlgorithm()
+        #region AES
+        private static RijndaelManaged GetCryptoAlgorithm(CipherMode cm)
         {
             RijndaelManaged algorithm = new RijndaelManaged();
             //set the mode, padding and block size
             algorithm.Padding = PaddingMode.PKCS7;
-            algorithm.Mode = CipherMode.ECB;
+            algorithm.Mode = cm;
             algorithm.KeySize = 128;
             algorithm.BlockSize = 128;
             return algorithm;
         }
 
 
-        public static string AesDecrypt(byte[] inputBytes, byte[] key)
+        public static byte[] AesDecryptECB(byte[] inputBytes, byte[] key)
         {
             byte[] outputBytes = inputBytes;
             byte[] keyAndIvBytes = key;
 
-            string plaintext = string.Empty;
 
-            using (MemoryStream memoryStream = new MemoryStream(outputBytes))
+            using (MemoryStream memoryStream = new MemoryStream())
             {
-                using (CryptoStream cryptoStream = new CryptoStream(memoryStream, GetCryptoAlgorithm().CreateDecryptor(keyAndIvBytes, keyAndIvBytes), CryptoStreamMode.Read))
+                using (CryptoStream cryptoStream = new CryptoStream(memoryStream, GetCryptoAlgorithm(CipherMode.ECB).CreateDecryptor(keyAndIvBytes, keyAndIvBytes), CryptoStreamMode.Write))
                 {
-                    using (StreamReader srDecrypt = new StreamReader(cryptoStream))
-                    {
-                        plaintext = srDecrypt.ReadToEnd();
-                    }
+                    cryptoStream.Write(inputBytes, 0, inputBytes.Length);
                 }
+
+                return memoryStream.ToArray();
             }
 
-            return plaintext;
+        }
+
+        public static byte[] AesEncryptECB(byte[] inputBytes, byte[] key)
+        {
+            byte[] outputBytes = inputBytes;
+            byte[] keyAndIvBytes = key;
+
+            using (MemoryStream memoryStream = new MemoryStream())
+            {
+                using (CryptoStream cryptoStream = new CryptoStream(memoryStream, GetCryptoAlgorithm(CipherMode.ECB).CreateEncryptor(keyAndIvBytes, keyAndIvBytes), CryptoStreamMode.Write))
+                {
+                    cryptoStream.Write(inputBytes, 0, inputBytes.Length);
+                }
+
+                return memoryStream.ToArray();
+            }
+
+        }
+
+        public static byte[] AesDecryptCBC(byte[] inputBytes, byte[] key, byte[] iv)
+        {
+            byte[] outputBytes = inputBytes;
+            byte[] keyBytes = key;
+            byte[] ivBytes = iv;
+
+
+            using (MemoryStream memoryStream = new MemoryStream())
+            {
+                using (CryptoStream cryptoStream = new CryptoStream(memoryStream, GetCryptoAlgorithm(CipherMode.CBC).CreateDecryptor(keyBytes, ivBytes), CryptoStreamMode.Write))
+                {
+                    cryptoStream.Write(inputBytes, 0, inputBytes.Length);
+                }
+
+                return memoryStream.ToArray();
+            }
+
+        }
+
+
+        public static byte[] AesEncryptCBC(byte[] inputBytes, byte[] key, byte[] iv)
+        {
+            byte[] outputBytes = inputBytes;
+            byte[] keyBytes = key;
+            byte[] ivBytes = iv;
+
+
+            using (MemoryStream memoryStream = new MemoryStream())
+            {
+                using (CryptoStream cryptoStream = new CryptoStream(memoryStream, GetCryptoAlgorithm(CipherMode.CBC).CreateEncryptor(keyBytes, ivBytes), CryptoStreamMode.Write))
+                {
+                    cryptoStream.Write(inputBytes, 0, inputBytes.Length);
+                }
+
+                return memoryStream.ToArray();
+            }
+
         }
 
         public static string[] DetectECB(string[] input)
@@ -315,7 +370,7 @@ namespace Cryptopals
                         }
                     }
                 }
-                
+
             }
 
             return result.ToArray();
@@ -323,19 +378,208 @@ namespace Cryptopals
 
         public static string Pkcs7Padding(string toPad, int blockLength = 16)
         {
-            List<byte> unpadded = new List<byte>(Utils.GetBytes(toPad));
+            List<byte> unpadded = new List<byte>(GetBytes(toPad));
             Console.WriteLine(blockLength);
             Console.WriteLine(unpadded.Count);
             int bytesToBeAdded = blockLength - unpadded.Count % blockLength;
 
             Console.WriteLine(bytesToBeAdded);
 
-            while(unpadded.Count % blockLength != 0)
+            while (unpadded.Count % blockLength != 0)
             {
                 unpadded.Add((byte)bytesToBeAdded);
             }
 
-            return Utils.GetString(unpadded.ToArray());
+            return GetString(unpadded.ToArray());
+        }
+
+        public static byte[] JitteryAESEncryption(byte[] input)
+        {
+            return RandomEncrypter(AppendRandomBytes(input));
+        }
+
+        private static string RandomAESKey()
+        {
+            Random rnd = new Random();
+
+            int keysize = 16;
+            String key = "";
+
+
+            for (int i = 0; i < keysize; i++)
+            {
+                key += (char)rnd.Next(256);
+            }
+
+            return key;
+        }
+
+        private static byte[] RandomEncrypter(byte[] plaintext)
+        {
+            Random rnd = new Random();
+
+            int type = rnd.Next(2);
+            
+            return (type == 0) ? (AesEncryptECB(plaintext, GetBytes(RandomAESKey()))) : 
+                (AesEncryptCBC(plaintext, GetBytes(RandomAESKey()), GetBytes(RandomAESKey())));
+        }
+
+        public static bool IsItAESECB(byte[] input)
+        {
+            byte[] lineBytes = input;
+
+            List<byte[]> chunksOf16 = new List<byte[]>();
+
+            for (int i = 0; i < lineBytes.Length; i += 16)
+            {
+                byte[] chunk = new byte[16];
+
+                for (int j = 0; j < 16; j++)
+                    chunk[j] = lineBytes[i + j];
+
+                chunksOf16.Add(chunk);
+            }
+
+            for (int x = 0; x < chunksOf16.Count; x++)
+            {
+                for (int y = 0; y < chunksOf16.Count; y++)
+                {
+                    if (x == y) continue;
+
+                    bool areEqual = true;
+
+                    for (int k = 0; k < 16; k++)
+                    {
+                        if (chunksOf16[x][k] != chunksOf16[y][k])
+                            areEqual = false;
+                    }
+
+                    if (areEqual)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+        
+        #endregion
+
+        #region Utils
+        static Dictionary<char, int> frequencyDict = new Dictionary<char, int>()
+        {
+            { 'e', 27 },
+            { 't', 26 },
+            { 'a', 25 },
+            { 'o', 24 },
+            { 'i', 23 },
+            { 'n', 22 },
+            { 's', 21 },
+            { 'r', 20 },
+            { 'h', 19 },
+            { 'l', 18 },
+            { 'd', 17 },
+            { 'c', 16 },
+            { 'u', 15 },
+            { 'm', 14 },
+            { 'f', 13 },
+            { 'p', 12 },
+            { 'g', 11 },
+            {'w', 10 },
+            { 'y', 9 },
+            { 'b', 8 },
+            { 'v', 7 },
+            { 'k', 6 },
+            { 'x', 5 },
+            { ' ', 4 },
+            { 'j', 3 },
+            { 'q', 2 },
+            { 'z', 1 }
+        };
+
+        public static int TotalFitnessOfString(string text)
+        {
+            int totalFitness = 0;
+
+            foreach (char c in text)
+            {
+                if (frequencyDict.ContainsKey(c))
+                    totalFitness += frequencyDict[c];
+            }
+
+            return totalFitness;
+        }
+
+
+        public static byte[] GetBytes(string str)
+        {
+            return Encoding.ASCII.GetBytes(str);
+        }
+
+        public static string GetString(byte[] bytes)
+        {
+            return Encoding.ASCII.GetString(bytes);
+        }
+
+        public static int HammingDistance(string s1, string s2)
+        {
+            return HammingDistance(new BitArray(GetBytes(s1)), new BitArray(GetBytes(s2)));
+        }
+
+
+        public static int HammingDistance(BitArray s1, BitArray s2)
+        {
+            int distance = 0;
+
+            for (int i = 0; i < s1.Length; i++)
+            {
+                if (s1[i] != s2[i])
+                    distance++;
+            }
+
+            return distance;
+        }
+
+        public static byte[] AppendRandomBytes(byte[] original)
+        {
+            Random rnd = new Random();
+
+            int before = rnd.Next(5, 11);
+            int after = rnd.Next(5, 11);
+
+            byte[] prefix = new byte[before];
+            byte[] suffix = new byte[after];
+
+            for (int i = 0; i < before; i++)
+            {
+                int value = rnd.Next(256);
+                prefix[i] = (byte)value;
+            }
+
+            for (int i = 0; i < after; i++)
+            {
+                int value = rnd.Next(256);
+                suffix[i] = (byte)value;
+            }
+
+            byte[] result = new byte[original.Length + before + after];
+
+            for (int i = 0; i < before; i++)
+            {
+                result[i] = prefix[i];
+            }
+
+            for (int i = 0; i < original.Length; i++)
+            {
+                result[i + before] = original[i];
+            }
+            for (int i = 0; i < after; i++)
+            {
+                result[i + before + original.Length] = suffix[i];
+            }
+
+            return result;
         }
         #endregion
 

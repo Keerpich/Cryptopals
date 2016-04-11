@@ -60,9 +60,46 @@ namespace Cryptopals
             //}
 
             //9
-            Console.WriteLine(Set1.Pkcs7Padding(Console.ReadLine(), 20));
+            //Console.WriteLine(Set1.Pkcs7Padding(Console.ReadLine(), 20));
 
-            Console.ReadKey();
+            ////10
+            //string textb64 = File.ReadAllText("input.txt");
+            ////string text = Utils.GetString( Set1.HexStringToByteArray(Set1.B64ToString (textb64)));
+
+
+
+            ////string text = "alabalaportocalahahahahahahha";
+
+            //byte[] key = Encoding.ASCII.GetBytes("YELLOW SUBMARINE");
+            //byte[] iv = Utils.GetBytes("0000000000000000");
+            //byte[] cipherBytes = Convert.FromBase64String(textb64);
+
+            ////byte[] cipherBytes = Set1.AesEncryptCBC(Encoding.ASCII.GetBytes(text), key, iv);
+
+            //byte[] plainBytes = Set1.AesDecryptCBC(cipherBytes, key, iv);
+
+            //Console.WriteLine(Utils.GetString(plainBytes));
+
+            //11
+
+            //Random rnd = new Random();
+
+            //for (int i = 0; i < 20; i++)
+            //{
+            //    bool b = Set1.IsItAESECB(Set1.JitteryAESEncryption(Set1.GetBytes("1234567812345678123456781234567812345678123456781234567812345678")));
+
+            //    if (b)
+            //    {
+            //        Console.WriteLine("ECB");
+            //    }
+            //    else
+            //    {
+            //        Console.WriteLine("CBC");
+            //    }
+            //    Console.WriteLine();
+            //}
+
+            //Console.ReadKey();
 
         }
     }
